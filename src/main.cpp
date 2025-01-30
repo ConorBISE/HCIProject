@@ -26,37 +26,6 @@ boolean pendingNotification = false;
 boolean incomingCall = false;
 uint8_t acceptCall = 0;
 
-class MySecurity : public BLESecurityCallbacks {
-
-    uint32_t onPassKeyRequest(){
-        ESP_LOGI(LOG_TAG, "PassKeyRequest");
-        return 123456;
-    }
-
-    void onPassKeyNotify(uint32_t pass_key){
-        ESP_LOGI(LOG_TAG, "On passkey Notify number:%d", pass_key);
-    }
-
-    bool onSecurityRequest(){
-        ESP_LOGI(LOG_TAG, "On Security Request");
-        return true;
-    }
-    
-    bool onConfirmPIN(unsigned int){
-        ESP_LOGI(LOG_TAG, "On Confrimed Pin Request");
-        return true;
-    }
-
-    void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl){
-        ESP_LOGI(LOG_TAG, "Starting BLE work!");
-        if(cmpl.success){
-            uint16_t length;
-            esp_ble_gap_get_whitelist_size(&length);
-            ESP_LOGD(LOG_TAG, "size: %d", length);
-        }
-    }
-};
-
 static void dataSourceNotifyCallback(
   BLERemoteCharacteristic* pDataSourceCharacteristic,
   uint8_t* pData,
@@ -155,7 +124,6 @@ class MyClient: public Task {
         BLEAddress* pAddress = (BLEAddress*)data;
         BLEClient*  pClient  = BLEDevice::createClient();
         BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
-        BLEDevice::setSecurityCallbacks(new MySecurity());
 
         BLESecurity *pSecurity = new BLESecurity();
         pSecurity->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_BOND);
@@ -195,12 +163,6 @@ class MyClient: public Task {
         pNotificationSourceCharacteristic->registerForNotify(NotificationSourceNotifyCallback);
         pNotificationSourceCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)v,2,true);
         /** END ANCS SERVICE **/
-
-
-
-
-
-
 
       while(1){
             if(pendingNotification || incomingCall){
@@ -267,18 +229,17 @@ class MyServerCallbacks: public BLEServerCallbacks {
     }
 };
 
-class MainBLEServer: public Task {
-    void run(void *data) {
+class MainBLEServer {
+public:
+    void run() {
         ESP_LOGD(LOG_TAG, "Starting BLE work!");
         esp_log_buffer_char(LOG_TAG, LOG_TAG, sizeof(LOG_TAG));
         esp_log_buffer_hex(LOG_TAG, LOG_TAG, sizeof(LOG_TAG));
 
         // Initialize device
-        BLEDevice::init("ANCS");
+        BLEDevice::init("Britabuddy");
         BLEServer* pServer = BLEDevice::createServer();
         pServer->setCallbacks(new MyServerCallbacks());
-        BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
-        BLEDevice::setSecurityCallbacks(new MySecurity());
 
         // Advertising parameters:
         // Soliciting ANCS
@@ -298,7 +259,6 @@ class MainBLEServer: public Task {
         pAdvertising->start();
         
         ESP_LOGD(LOG_TAG, "Advertising started!");
-        delay(portMAX_DELAY);
     }
 
     
@@ -308,26 +268,26 @@ class MainBLEServer: public Task {
      */
     void _setServiceSolicitation(BLEAdvertisementData *a, BLEUUID uuid)
     {
-      char cdata[2];
-      switch(uuid.bitSize()) {
-        case 16: {
-          // [Len] [0x14] [UUID16] data
-          cdata[0] = 3;
-          cdata[1] = ESP_BLE_AD_TYPE_SOL_SRV_UUID;  // 0x14
-          a->addData(std::string(cdata, 2) + std::string((char *)&uuid.getNative()->uuid.uuid16,2));
-          break;
-        }
-    
-        case 128: {
-          // [Len] [0x15] [UUID128] data
-          cdata[0] = 17;
-          cdata[1] = ESP_BLE_AD_TYPE_128SOL_SRV_UUID;  // 0x15
-          a->addData(std::string(cdata, 2) + std::string((char *)uuid.getNative()->uuid.uuid128,16));
-          break;
-        }
-    
-        default:
-          return;
+        char cdata[2];
+        switch(uuid.bitSize()) {
+            case 16: {
+                // [Len] [0x14] [UUID16] data
+                cdata[0] = 3;
+                cdata[1] = ESP_BLE_AD_TYPE_SOL_SRV_UUID;  // 0x14
+                a->addData(std::string(cdata, 2) + std::string((char *)&uuid.getNative()->uuid.uuid16,2));
+                break;
+            }
+        
+            case 128: {
+                // [Len] [0x15] [UUID128] data
+                cdata[0] = 17;
+                cdata[1] = ESP_BLE_AD_TYPE_128SOL_SRV_UUID;  // 0x15
+                a->addData(std::string(cdata, 2) + std::string((char *)uuid.getNative()->uuid.uuid128,16));
+                break;
+            }
+            
+            default:
+                return;
       }
     } // setServiceSolicitationData
 
@@ -337,8 +297,7 @@ class MainBLEServer: public Task {
 void SampleSecureServer(void)
 {
     MainBLEServer* pMainBleServer = new MainBLEServer();
-    pMainBleServer->setStackSize(20000);
-    pMainBleServer->start();
+    pMainBleServer->run();
 }
 
 void setup()
