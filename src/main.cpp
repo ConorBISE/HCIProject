@@ -1,5 +1,4 @@
-// Original: https://github.com/S-March/esp32_ANCS
-// fixed for Arduino15/packages/esp32/hardware/esp32/1.0.3
+// Based on https://github.com/gabrielchristino/ANCS
 
 #include <Arduino.h>
 #include "BLEDevice.h"
@@ -21,7 +20,6 @@ static BLEUUID ancsServiceUUID("7905F431-B5CE-4E99-A40F-4B1E122D00D0");
 static BLEUUID notificationSourceCharacteristicUUID("9FBF120D-6301-42D9-8C58-25E699A21DBD");
 static BLEUUID controlPointCharacteristicUUID("69D1D8F3-45E1-49A8-9821-9BBDFDAAD9D9");
 static BLEUUID dataSourceCharacteristicUUID("22EAC6E9-24D6-4BB5-BE44-B36ACE7C7BFB");
-
 
 uint8_t latestMessageID[4];
 boolean pendingNotification = false;
@@ -64,18 +62,10 @@ static void dataSourceNotifyCallback(
   uint8_t* pData,
   size_t length,
   bool isNotify) {
-    //Serial.print("Notify callback for characteristic ");
-    //Serial.print(pDataSourceCharacteristic->getUUID().toString().c_str());
-    //Serial.print(" of data length ");
-    //Serial.println(length);
     for(int i = 0; i < length; i++){
         if(i > 7){
             Serial.write(pData[i]);
         }
-        /*else{
-            Serial.print(pData[i], HEX);
-            Serial.print(" ");
-        }*/
     }
     Serial.println();
 }
@@ -89,7 +79,6 @@ static void NotificationSourceNotifyCallback(
     if(pData[0]==0)
     {
         Serial.println("New notification!");
-        //Serial.println(pNotificationSourceCharacteristic->getUUID().toString().c_str());
         latestMessageID[0] = pData[4];
         latestMessageID[1] = pData[5];
         latestMessageID[2] = pData[6];
@@ -152,7 +141,6 @@ static void NotificationSourceNotifyCallback(
         Serial.println("Call Gone!");
       }
     }
-    //Serial.println("pendingNotification");
     pendingNotification = true;
 }
 
@@ -215,8 +203,6 @@ class MyClient: public Task {
 
 
       while(1){
-        //Serial.print("running ");
-        //Serial.println(pendingNotification);
             if(pendingNotification || incomingCall){
                 // CommandID: CommandIDGetNotificationAttributes
                 // 32bit uid
@@ -259,16 +245,7 @@ class MyClient: public Task {
                 pendingNotification = false;
             }
             delay(100); //does not work without small delay
-        }
-
-
-
-
-
-
-
-
-        
+        }        
     } // run
 }; // MyClient
 
@@ -299,7 +276,7 @@ class MainBLEServer: public Task {
         // Initialize device
         BLEDevice::init("ANCS");
         BLEServer* pServer = BLEDevice::createServer();
-        // pServer->setCallbacks(new MyServerCallbacks());
+        pServer->setCallbacks(new MyServerCallbacks());
         BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
         BLEDevice::setSecurityCallbacks(new MySecurity());
 
@@ -308,7 +285,7 @@ class MainBLEServer: public Task {
         BLEAdvertising *pAdvertising = pServer->getAdvertising();
         BLEAdvertisementData oAdvertisementData = BLEAdvertisementData();
         oAdvertisementData.setFlags(0x01);
-        _setServiceSolicitation(&oAdvertisementData, BLEUUID("7905F431-B5CE-4E99-A40F-4B1E122D00D0"));
+        _setServiceSolicitation(&oAdvertisementData, ancsServiceUUID);
         pAdvertising->setAdvertisementData(oAdvertisementData);        
 
         // Set security
