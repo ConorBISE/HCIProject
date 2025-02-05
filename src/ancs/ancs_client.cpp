@@ -11,6 +11,96 @@ boolean pendingNotification = false;
 boolean incomingCall = false;
 uint8_t acceptCall = 0;
 
+void ANCSClient::onDataSourceCharacteristicNotify(
+        BLERemoteCharacteristic* pDataSourceCharacteristic,
+        uint8_t* pData,
+        size_t length,
+        bool isNotify
+) {
+    for(int i = 0; i < length; i++){
+        if(i > 7){
+            Serial.write(pData[i]);
+        }
+    }
+    Serial.println();
+}
+
+void ANCSClient::onNotificationCharacteristicNotify(
+        BLERemoteCharacteristic* pDataSourceCharacteristic,
+        uint8_t* pData,
+        size_t length,
+        bool isNotify
+) {
+    ANCSNotificationSourceResponse* message = (ANCSNotificationSourceResponse*) pData;
+
+    if(message->eventId == EventID::NotificationAdded)
+    {
+        Serial.println("New notification!");
+        latestMessageID[0] = pData[4];
+        latestMessageID[1] = pData[5];
+        latestMessageID[2] = pData[6];
+        latestMessageID[3] = pData[7];
+            
+        switch(message->categoryId)
+        {
+            case CategoryID::Other:
+                Serial.println("Category: Other");
+            break;
+            case CategoryID::IncomingCall:
+                incomingCall = true;
+                Serial.println("Category: Incoming call");
+            break;
+            case CategoryID::MissedCall:
+                Serial.println("Category: Missed call");
+            break;
+            case CategoryID::Voicemail:
+                Serial.println("Category: Voicemail");
+            break;
+            case CategoryID::Social:
+                Serial.println("Category: Social");
+            break;
+            case CategoryID::Schedule:
+                Serial.println("Category: Schedule");
+            break;
+            case CategoryID::Email:
+                Serial.println("Category: Email");
+            break;
+            case CategoryID::News:
+                Serial.println("Category: News");
+            break;
+            case CategoryID::HealthAndFitness:
+                Serial.println("Category: Health");
+            break;
+            case CategoryID::BusinessAndFinance:
+                Serial.println("Category: Business");
+            break;
+            case CategoryID::Location:
+                Serial.println("Category: Location");
+            break;
+            case CategoryID::Entertainment:
+                Serial.println("Category: Entertainment");
+            break;
+            default:
+            break;
+        }
+        }
+    else if(message->eventId == EventID::NotificationModified)
+    {
+        Serial.println("Notification Modified!");
+        if (message->categoryId == CategoryID::IncomingCall) {
+            Serial.println("Call Changed!");
+        }
+    }
+    else if(message->eventId == EventID::NotificationRemoved)
+    {
+        Serial.println("Notification Removed!");
+        if (message->categoryId == CategoryID::IncomingCall) {
+            Serial.println("Call Gone!");
+        }
+    }
+    pendingNotification = true;
+}
+
 /**
  * Become a BLE client to a remote BLE server.  We are passed in the address of the BLE server
  * as the input parameter when the task is created.
@@ -55,85 +145,14 @@ void ANCSClient::run(void* data) {
     }        
     const uint8_t v[]={0x1,0x0};
 
-    pDataSourceCharacteristic->registerForNotify([](BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-        for(int i = 0; i < length; i++){
-            if(i > 7){
-                Serial.write(pData[i]);
-            }
-        }
-        Serial.println();
+    pDataSourceCharacteristic->registerForNotify([this](BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+        onDataSourceCharacteristicNotify(pDataSourceCharacteristic, pData, length, isNotify);
     });
-
 
     pDataSourceCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)v,2,true);
 
-    pNotificationSourceCharacteristic->registerForNotify([](BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-        if(pData[0]==0)
-        {
-            Serial.println("New notification!");
-            latestMessageID[0] = pData[4];
-            latestMessageID[1] = pData[5];
-            latestMessageID[2] = pData[6];
-            latestMessageID[3] = pData[7];
-            
-            switch(pData[2])
-            {
-                case 0:
-                    Serial.println("Category: Other");
-                break;
-                case 1:
-                    incomingCall = true;
-                    Serial.println("Category: Incoming call");
-                break;
-                case 2:
-                    Serial.println("Category: Missed call");
-                break;
-                case 3:
-                    Serial.println("Category: Voicemail");
-                break;
-                case 4:
-                    Serial.println("Category: Social");
-                break;
-                case 5:
-                    Serial.println("Category: Schedule");
-                break;
-                case 6:
-                    Serial.println("Category: Email");
-                break;
-                case 7:
-                    Serial.println("Category: News");
-                break;
-                case 8:
-                    Serial.println("Category: Health");
-                break;
-                case 9:
-                    Serial.println("Category: Business");
-                break;
-                case 10:
-                    Serial.println("Category: Location");
-                break;
-                case 11:
-                    Serial.println("Category: Entertainment");
-                break;
-                default:
-                break;
-            }
-        }
-        else if(pData[0]==1)
-        {
-        Serial.println("Notification Modified!");
-        if (pData[2] == 1) {
-            Serial.println("Call Changed!");
-        }
-        }
-        else if(pData[0]==2)
-        {
-        Serial.println("Notification Removed!");
-        if (pData[2] == 1) {
-            Serial.println("Call Gone!");
-        }
-        }
-        pendingNotification = true;
+    pNotificationSourceCharacteristic->registerForNotify([this](BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+        onNotificationCharacteristicNotify(pDataSourceCharacteristic, pData, length, isNotify);
     });
     
     pNotificationSourceCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)v,2,true);
