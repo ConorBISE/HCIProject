@@ -8,7 +8,6 @@ namespace ancs {
 
 uint8_t latestMessageID[4];
 boolean pendingNotification = false;
-boolean incomingCall = false;
 uint8_t acceptCall = 0;
 
 void ANCSClient::onDataSourceCharacteristicNotify(
@@ -36,6 +35,9 @@ void ANCSClient::onNotificationCharacteristicNotify(
     if(message->eventId == EventID::NotificationAdded)
     {
         Serial.println("New notification!");
+
+        ancsServer->getNotificationCallback()();
+
         latestMessageID[0] = pData[4];
         latestMessageID[1] = pData[5];
         latestMessageID[2] = pData[6];
@@ -47,7 +49,6 @@ void ANCSClient::onNotificationCharacteristicNotify(
                 Serial.println("Category: Other");
             break;
             case CategoryID::IncomingCall:
-                incomingCall = true;
                 Serial.println("Category: Incoming call");
             break;
             case CategoryID::MissedCall:
@@ -159,7 +160,7 @@ void ANCSClient::run(void* data) {
     /** END ANCS SERVICE **/
 
     while(1){
-        if(pendingNotification || incomingCall){
+        if(pendingNotification){
             // CommandID: CommandIDGetNotificationAttributes
             // 32bit uid
             // AttributeID
@@ -173,30 +174,7 @@ void ANCSClient::run(void* data) {
             const uint8_t vDate[]={0x0,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x5};
             pControlPointCharacteristic->writeValue((uint8_t*)vDate,6,true);
 
-
-            while (incomingCall)
-            {
-                if (Serial.available() > 0) {
-                acceptCall = Serial.read();
-                Serial.println((char)acceptCall);
-                }
-                
-                if (acceptCall == 49) { //call accepted , get number 1 from serial
-                const uint8_t vResponse[]={0x02,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x00};
-                pControlPointCharacteristic->writeValue((uint8_t*)vResponse,6,true);
-
-                acceptCall = 0;
-                //incomingCall = false;
-                }
-                else if (acceptCall == 48) {  //call rejected , get number 0 from serial
-                const uint8_t vResponse[]={0x02,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x01};
-                pControlPointCharacteristic->writeValue((uint8_t*)vResponse,6,true);
-
-                acceptCall = 0;
-                incomingCall = false;
-                }
-            }
-            
+            // TODO - readd call logic?
                             
             pendingNotification = false;
         }

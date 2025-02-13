@@ -2,14 +2,20 @@
 #define ANCS_CLIENT_H
 
 #include "Task.h"
+#include "ancs.h"
 
 namespace ancs {
 
 class ANCSClient: public Task {
-    void run(void* data) override;
+public:
+    ANCSClient(ANCSServer* ancsServer) : ancsServer{ancsServer} {};
 
+private:
+    void run(void* data) override;
     void onDataSourceCharacteristicNotify(BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify);
     void onNotificationCharacteristicNotify(BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify);
+
+    ANCSServer* ancsServer;
 };
 
 enum class EventID: uint8_t {

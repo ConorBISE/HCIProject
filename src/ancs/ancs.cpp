@@ -19,11 +19,14 @@ static char LOG_TAG[] = "SampleServer";
 namespace ancs {
 
 class ANCSServerCallbacks: public BLEServerCallbacks {
+public:
+    ANCSServerCallbacks(ANCSServer* ancsServer) : ancsServer{ancsServer} {};
+
     void onConnect(BLEServer* server, esp_ble_gatts_cb_param_t *param) {
         ESP_LOGD(LOG_TAG, "Device connected. Mac address:");
         ESP_LOGD(LOG_TAG, BLEAddress(param->connect.remote_bda).toString().c_str());
 
-        ANCSClient* pMyClient = new ANCSClient();
+        ANCSClient* pMyClient = new ANCSClient(ancsServer);
         pMyClient->setStackSize(18000);
         pMyClient->start(new BLEAddress(param->connect.remote_bda));
     };
@@ -31,6 +34,9 @@ class ANCSServerCallbacks: public BLEServerCallbacks {
     void onDisconnect(BLEServer* server) {
         ESP_LOGD(LOG_TAG, "Device disconnected");
     }
+
+private:
+    ANCSServer* ancsServer;
 };
 
 void ANCSServer::run() {
@@ -41,7 +47,7 @@ void ANCSServer::run() {
         // Initialize device
         BLEDevice::init("Britabuddy");
         BLEServer* server = BLEDevice::createServer();
-        server->setCallbacks(new ANCSServerCallbacks());
+        server->setCallbacks(new ANCSServerCallbacks(this));
 
         // Advertising parameters:
         // Soliciting ANCS

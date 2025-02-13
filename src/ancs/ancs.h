@@ -14,12 +14,21 @@ static BLEUUID notificationSourceCharacteristicUUID("9FBF120D-6301-42D9-8C58-25E
 static BLEUUID controlPointCharacteristicUUID("69D1D8F3-45E1-49A8-9821-9BBDFDAAD9D9");
 static BLEUUID dataSourceCharacteristicUUID("22EAC6E9-24D6-4BB5-BE44-B36ACE7C7BFB");
 
+typedef void (*notification_callback_t) ();
+
 class ANCSServer {
 public:
+    void setNotificationCallback(notification_callback_t notificationCallback) {
+        this->notificationCallback = notificationCallback;
+    }
+
+    notification_callback_t getNotificationCallback() { return notificationCallback; };
+    
     void run();
 
 private:
     void _setServiceSolicitation(BLEAdvertisementData *a, BLEUUID uuid);
+    notification_callback_t notificationCallback;
 };
 
 }
