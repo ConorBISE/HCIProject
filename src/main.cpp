@@ -3,8 +3,9 @@
 
 ancs::ANCSServer ancsServer;
 
-void notificationCallback() {
-  Serial.println("Notification!");
+void notificationCallback(ancs::Notification* notification) {
+  Serial.print("Notification: ");
+  Serial.println(notification->message);
 }
 
 void setup()
@@ -13,6 +14,7 @@ void setup()
     ancsServer.setNotificationCallback(notificationCallback);
     ancsServer.run();
 }
+
 void loop()
 {
 
