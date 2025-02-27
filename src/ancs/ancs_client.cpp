@@ -1,15 +1,11 @@
-#include <Arduino.h>
-#include "BLEDevice.h"
-
 #include "ancs_client.h"
+
+#include "BLEDevice.h"
 #include "ancs.h"
 
-namespace ancs {
+static char LOG_TAG[] = "ANCSClient";
 
-uint8_t latestMessageID[4];
-boolean pendingNotification = false;
-boolean incomingCall = false;
-uint8_t acceptCall = 0;
+namespace ancs {
 
 void ANCSClient::onDataSourceCharacteristicNotify(
         BLERemoteCharacteristic* pDataSourceCharacteristic,
@@ -17,88 +13,41 @@ void ANCSClient::onDataSourceCharacteristicNotify(
         size_t length,
         bool isNotify
 ) {
-    for(int i = 0; i < length; i++){
-        if(i > 7){
-            Serial.write(pData[i]);
-        }
-    }
-    Serial.println();
-}
+    uint32_t notificationUid = *((uint32_t*) &pData[1]);
+    
+    // Skip command id, notification ID
+    int i = 5;
 
-void ANCSClient::onNotificationCharacteristicNotify(
-        BLERemoteCharacteristic* pDataSourceCharacteristic,
-        uint8_t* pData,
-        size_t length,
-        bool isNotify
-) {
-    ANCSNotificationSourceResponse* message = (ANCSNotificationSourceResponse*) pData;
+    Notification* notification = new Notification;
 
-    if(message->eventId == EventID::NotificationAdded)
-    {
-        Serial.println("New notification!");
-        latestMessageID[0] = pData[4];
-        latestMessageID[1] = pData[5];
-        latestMessageID[2] = pData[6];
-        latestMessageID[3] = pData[7];
-            
-        switch(message->categoryId)
-        {
-            case CategoryID::Other:
-                Serial.println("Category: Other");
-            break;
-            case CategoryID::IncomingCall:
-                incomingCall = true;
-                Serial.println("Category: Incoming call");
-            break;
-            case CategoryID::MissedCall:
-                Serial.println("Category: Missed call");
-            break;
-            case CategoryID::Voicemail:
-                Serial.println("Category: Voicemail");
-            break;
-            case CategoryID::Social:
-                Serial.println("Category: Social");
-            break;
-            case CategoryID::Schedule:
-                Serial.println("Category: Schedule");
-            break;
-            case CategoryID::Email:
-                Serial.println("Category: Email");
-            break;
-            case CategoryID::News:
-                Serial.println("Category: News");
-            break;
-            case CategoryID::HealthAndFitness:
-                Serial.println("Category: Health");
-            break;
-            case CategoryID::BusinessAndFinance:
-                Serial.println("Category: Business");
-            break;
-            case CategoryID::Location:
-                Serial.println("Category: Location");
-            break;
-            case CategoryID::Entertainment:
-                Serial.println("Category: Entertainment");
-            break;
-            default:
-            break;
+    while (i < length) {
+        NotificationAttributeID attrId = (NotificationAttributeID) pData[i];
+        uint16_t attrLen = (uint16_t) pData[i + 1];
+
+        String attrString = String((uint8_t*) &pData[i + 3], attrLen);
+        
+        switch (attrId) {
+            case NotificationAttributeID::AppIdentifier:
+                notification->appIdentifier = attrString;
+                break;
+
+            case NotificationAttributeID::Title:
+                notification->title = attrString;
+                break;
+
+            case NotificationAttributeID::Message:
+                notification->message = attrString;
+                break;
+
+            case NotificationAttributeID::Date:
+                notification->date = attrString;
+                break;
         }
-        }
-    else if(message->eventId == EventID::NotificationModified)
-    {
-        Serial.println("Notification Modified!");
-        if (message->categoryId == CategoryID::IncomingCall) {
-            Serial.println("Call Changed!");
-        }
+    
+        i += attrLen + 3;
     }
-    else if(message->eventId == EventID::NotificationRemoved)
-    {
-        Serial.println("Notification Removed!");
-        if (message->categoryId == CategoryID::IncomingCall) {
-            Serial.println("Call Gone!");
-        }
-    }
-    pendingNotification = true;
+
+    ancsServer->getNotificationCallback()(notification);
 }
 
 /**
@@ -108,7 +57,7 @@ void ANCSClient::onNotificationCharacteristicNotify(
 void ANCSClient::run(void* data) {
 
     BLEAddress* pAddress = (BLEAddress*)data;
-    BLEClient*  pClient  = BLEDevice::createClient();
+    client  = BLEDevice::createClient();
     BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
 
     BLESecurity *security = new BLESecurity();
@@ -116,11 +65,11 @@ void ANCSClient::run(void* data) {
     security->setCapability(ESP_IO_CAP_IO);
     security->setRespEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
     // Connect to the remove BLE Server.
-    pClient->connect(*pAddress);
+    client->connect(*pAddress);
 
     /** BEGIN ANCS SERVICE **/
     // Obtain a reference to the service we are after in the remote BLE server.
-    BLERemoteService* pAncsService = pClient->getService(ancsServiceUUID);
+    BLERemoteService* pAncsService = client->getService(ancsServiceUUID);
     if (pAncsService == nullptr) {
         ESP_LOGD(LOG_TAG, "Failed to find our service UUID: %s", ancsServiceUUID.toString().c_str());
         return;
@@ -142,65 +91,39 @@ void ANCSClient::run(void* data) {
     if (pDataSourceCharacteristic == nullptr) {
         ESP_LOGD(LOG_TAG, "Failed to find our characteristic UUID: %s", dataSourceCharacteristicUUID.toString().c_str());
         return;
-    }        
-    const uint8_t v[]={0x1,0x0};
+    }
 
     pDataSourceCharacteristic->registerForNotify([this](BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
         onDataSourceCharacteristicNotify(pDataSourceCharacteristic, pData, length, isNotify);
     });
 
-    pDataSourceCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)v,2,true);
-
     pNotificationSourceCharacteristic->registerForNotify([this](BLERemoteCharacteristic* pDataSourceCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-        onNotificationCharacteristicNotify(pDataSourceCharacteristic, pData, length, isNotify);
+        ANCSNotificationSourceResponse* message = (ANCSNotificationSourceResponse*) pData;
+    
+        if(message->eventId == EventID::NotificationAdded) {
+            notificationQueue.push_back(message->notificationUid);
+        }
     });
     
-    pNotificationSourceCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)v,2,true);
-    /** END ANCS SERVICE **/
+    while (true) {
+        while (notificationQueue.size() > 0) {
+            uint32_t notificationId = notificationQueue.front();
+            uint8_t* notificationIdBytes = (uint8_t*) &notificationId;
 
-    while(1){
-        if(pendingNotification || incomingCall){
-            // CommandID: CommandIDGetNotificationAttributes
-            // 32bit uid
-            // AttributeID
-            Serial.println("Requesting details...");
-            const uint8_t vIdentifier[]={0x0,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x0};
-            pControlPointCharacteristic->writeValue((uint8_t*)vIdentifier,6,true);
-            const uint8_t vTitle[]={0x0,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x1, 0x0, 0x10};
-            pControlPointCharacteristic->writeValue((uint8_t*)vTitle,8,true);
-            const uint8_t vMessage[]={0x0,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x3, 0x0, 0x10};
-            pControlPointCharacteristic->writeValue((uint8_t*)vMessage,8,true);
-            const uint8_t vDate[]={0x0,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x5};
-            pControlPointCharacteristic->writeValue((uint8_t*)vDate,6,true);
-
-
-            while (incomingCall)
-            {
-                if (Serial.available() > 0) {
-                acceptCall = Serial.read();
-                Serial.println((char)acceptCall);
-                }
-                
-                if (acceptCall == 49) { //call accepted , get number 1 from serial
-                const uint8_t vResponse[]={0x02,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x00};
-                pControlPointCharacteristic->writeValue((uint8_t*)vResponse,6,true);
-
-                acceptCall = 0;
-                //incomingCall = false;
-                }
-                else if (acceptCall == 48) {  //call rejected , get number 0 from serial
-                const uint8_t vResponse[]={0x02,   latestMessageID[0],latestMessageID[1],latestMessageID[2],latestMessageID[3],   0x01};
-                pControlPointCharacteristic->writeValue((uint8_t*)vResponse,6,true);
-
-                acceptCall = 0;
-                incomingCall = false;
-                }
-            }
+            const uint8_t vIdentifier[] = {
+                0x0, // Command id
+                notificationIdBytes[0], notificationIdBytes[1], notificationIdBytes[2], notificationIdBytes[3],
+                (uint8_t) NotificationAttributeID::AppIdentifier,
+                (uint8_t) NotificationAttributeID::Title, 0x0, 0x10,
+                (uint8_t) NotificationAttributeID::Message, 0x0, 0x10,
+                (uint8_t) NotificationAttributeID::Date, 0x0, 0x5
+            };
             
-                            
-            pendingNotification = false;
+            pControlPointCharacteristic->writeValue((uint8_t*)vIdentifier, 15, true);
+            notificationQueue.pop_front();
         }
-        delay(100); //does not work without small delay
+
+        delay(100);
     }        
 } // ANCSClient::run
 
