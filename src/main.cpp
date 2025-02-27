@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "ancs/ancs.h" 
+#include "integrations/ancs/ancs.h" 
 #include <WiFi.h>
 
 #define WIFI_SSID "dev"
@@ -16,12 +16,11 @@ void setup()
     WiFi.begin(WIFI_SSID, WIFI_PWD);
 
     while (WiFi.status() != WL_CONNECTED) {
-      ESP_LOGI(LOG_TAG, ".");
-      delay(1000);
+        ESP_LOGI(LOG_TAG, ".");
+        delay(1000);
     }
 
     ESP_LOGI(LOG_TAG, "\nConnected to wifi!");
-
 }
 
 void loop()
