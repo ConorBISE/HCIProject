@@ -14,7 +14,7 @@
 #include "ancs_client.h"
 
 
-static char LOG_TAG[] = "SampleServer";
+static char LOG_TAG[] = "ANCSServer";
 
 namespace ancs {
 
