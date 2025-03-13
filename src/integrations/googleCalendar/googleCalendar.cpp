@@ -8,8 +8,8 @@ static char LOG_TAG[] = "GoogleCalendar";
 CalendarEvent* GoogleCalendarAPI::pollEvents(int* numEvents) {
     HTTPClient client;
 
-    client.begin("https://www.googleapis.com/calendar/v3/calendars/" + calendarId + "/events");
-    client.addHeader("Authorization", "Bearer " + apiKey);
+    client.begin("http://192.168.137.1:8000/calendar/v3/calendars/" + calendarId + "/events");
+    // client.addHeader("Authorization", "Bearer " + apiKey);
 
     int res = client.GET();
     if (res > 0) {
@@ -25,7 +25,7 @@ CalendarEvent* GoogleCalendarAPI::pollEvents(int* numEvents) {
             JsonVariant item = items[i];
             calendarEvents[i].name = item["summary"].as<String>();
             
-            strptime(item["start"]["dateTime"].as<String>().c_str(), "%Y-%m-%dT%H:%M%SZ", &calendarEvents[i].startTime);
+            strptime(item["start"]["dateTime"].as<String>().c_str(), "%Y-%m-%dT%H:%M:%S.%f", &calendarEvents[i].startTime);
         }
 
         *numEvents = items.size();

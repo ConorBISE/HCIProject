@@ -9,7 +9,8 @@ Deno.serve({port: 8080}, async (req) => {
         const code = new URL(req.url).searchParams.get("code");
         const CODE_URL = `https://oauth2.googleapis.com/token?client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&code=${code}&grant_type=authorization_code&redirect_uri=${REDIRECT_URI}`
 
-        const res = await (await fetch(CODE_URL, { method: "POST" })).text()
+        const res = await (await fetch(CODE_URL, { method: "POST" })).json();
+        await Deno.writeTextFile("token.json", JSON.stringify(res));
         return new Response(res)
     } else {
         return Response.redirect(AUTH_URL);
