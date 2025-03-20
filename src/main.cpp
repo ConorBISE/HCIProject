@@ -21,6 +21,8 @@ CRGB leds[NUM_LEDS];
 #define CALENDAR_ID "c_bec6564656aa30cdc4525b876e527e9df464a013eaef033225ce2ae2fca47580@group.calendar.google.com"
 #define EVENT_ALERT_TIME 60 * 5
 
+#define EYE_TIMEOUT_TIME_MS 1000 * 60 * 10
+
 static char LOG_TAG[] = "Main";
 
 GoogleCalendarAPI calendar(CALENDAR_ID);
@@ -40,7 +42,7 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_R
 #define LEFT_TOUCH_THRESHOLD 32
 
 #define RIGHT_TOUCH_PIN T5
-#define RIGHT_TOUCH_THRESHOLD 30
+#define RIGHT_TOUCH_THRESHOLD 32
 
 #define TOP_TOUCH_PIN T7
 #define TOP_TOUCH_THRESHOLD 42
@@ -84,7 +86,6 @@ void showNotification(String title, String subtitle, CRGB color)
   tft.setRotation(1);
 
   tft.setTextSize(2);
-  tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
 
   int16_t x1, y1;
   uint16_t w, h;
@@ -123,7 +124,7 @@ void showNotification(String title, String subtitle, CRGB color)
 
   for (int i = 0; i < NUM_LEDS; i++)
   {
-    leds[i] = color.nscale8(50);
+    leds[i] = color;
   }
 
   FastLED.show();
@@ -160,7 +161,7 @@ void startWifi()
 
   ESP_LOGI(LOG_TAG, "\nConnected to wifi!");
 
-  configTime(0, 0, "pool.ntp.org");
+  configTime(0, 0, "ie.pool.ntp.org");
 }
 
 void setup()
@@ -248,6 +249,28 @@ boolean processButtonEvents(ButtonEvent &event)
 }
 
 long nextCalendarCheck = 0;
+long lastButtonPress = 0;
+
+long nextEyeUpdate = 0;
+bool drawingEyesLastFrame = false;
+
+void drawEyes() {
+  drawingEyesLastFrame = true;
+
+  if (millis() > nextEyeUpdate) {
+    tft.fillScreen(ILI9341_BLACK);
+    tft.fillCircle(160 / 2, 120, 60, ILI9341_WHITE);
+    tft.fillCircle(160 * 3 / 2, 120, 60, ILI9341_WHITE);
+
+    int xOffset = random(-28, 28);
+    int yOffset = random(-28, 28);
+
+    tft.fillCircle((160 / 2) + xOffset, 120 + yOffset, 20, ILI9341_BLACK);
+    tft.fillCircle((160 * 3 / 2) + xOffset, 120 + yOffset, 20, ILI9341_BLACK);
+
+    nextEyeUpdate = millis() + (10 * 1000);
+  }
+}
 
 void loop()
 {
@@ -256,6 +279,8 @@ void loop()
 
   if (haveEvent)
   {
+    lastButtonPress = millis();
+
     if (event.position == ButtonPosition::Left && event.state == ButtonState::Pressed)
     {
       Serial.println("Left press");
@@ -279,7 +304,17 @@ void loop()
 
   if (!isNotificationShowing)
   {
-    SCREENS[activeScreenIndex]->update(haveEvent ? &event : nullptr);
+    if (millis() > lastButtonPress + EYE_TIMEOUT_TIME_MS) {
+      drawEyes();
+    } else {
+      if (drawingEyesLastFrame) {
+        SCREENS[activeScreenIndex]->onEnter();
+      }
+
+      SCREENS[activeScreenIndex]->update(haveEvent ? &event : nullptr);
+      drawingEyesLastFrame = false;
+    }
+
   }
   else if (millis() > notificationDisappearTime)
   {
@@ -308,8 +343,9 @@ void loop()
         showNotification("Event in 5 minutes!", event->name, CRGB(179, 87, 7));
       }
 
-      nextCalendarCheck = millis() + 30 * 1000;
     }
+
+    nextCalendarCheck = millis() + (30 * 1000);
   }
   else
   {

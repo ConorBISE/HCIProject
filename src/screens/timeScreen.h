@@ -12,7 +12,7 @@ public:
     void update(ButtonEvent* event) override;
 
 private:
-    void drawWeather();
+    void drawTime();
     time_t nextUpdateTime;
 };
 

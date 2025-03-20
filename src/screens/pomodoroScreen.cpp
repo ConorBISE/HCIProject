@@ -1,9 +1,7 @@
 #include "pomodoroScreen.h"
 
-// #define WORK_LENGTH 25 * 60
-// #define BREAK_LENGH 5 * 60
-#define WORK_LENGTH 25
-#define BREAK_LENGTH 5
+#define WORK_LENGTH 25 * 60
+#define BREAK_LENGTH 5 * 60
 
 time_t getNow() {
     tm now;
@@ -17,13 +15,14 @@ void PomodoroScreen::printCenteredTimeRemaining(int remainingTime) {
     int minutes = remainingTime / 60;
     int seconds = (remainingTime % 60);
 
+    
     char buffer[16];
     snprintf(buffer, sizeof(buffer), "%02d:%02d", minutes, seconds);
 
     int16_t x1, y1;
     uint16_t w, h;
     
-    tft->setTextSize(4);
+    tft->setTextSize(6);
     tft->getTextBounds(buffer, 0, 0, &x1, &y1, &w, &h);
     int16_t x = (tft->width() - w) / 2;
     int16_t y = (tft->height() - h) / 2;
