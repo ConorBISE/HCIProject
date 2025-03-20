@@ -9,8 +9,7 @@ CalendarEvent* GoogleCalendarAPI::pollEvents(int* numEvents) {
     HTTPClient client;
 
     client.begin("http://192.168.137.1:8000/calendar/v3/calendars/" + calendarId + "/events");
-    // client.addHeader("Authorization", "Bearer " + apiKey);
-
+   
     int res = client.GET();
     if (res > 0) {
         auto out = client.getString();

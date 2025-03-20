@@ -10,6 +10,28 @@ async function handler(req: Request): Promise<Response> {
 
     console.log(`Received request: ${req.method} ${url.pathname}${url.search}`);
 
+    if (url.pathname === "/weather") {
+        const weatherUrl = "https://api.open-meteo.com/v1/forecast";
+        const weatherParams = new URLSearchParams(url.search);
+        weatherParams.set("latitude", "52.6647"); // Example latitude
+        weatherParams.set("longitude", "-8.6231"); // Example longitude
+        weatherParams.set("current", "relative_humidity_2m,weather_code,temperature_2m");
+
+        const weatherReq = new Request(`${weatherUrl}?${weatherParams.toString()}`, {
+            method: req.method,
+            headers: req.headers,
+        });
+
+        const weatherRes = await fetch(weatherReq);
+        const weatherResponseHeaders = new Headers(weatherRes.headers);
+
+        return new Response(weatherRes.body, {
+            status: weatherRes.status,
+            statusText: weatherRes.statusText,
+            headers: weatherResponseHeaders,
+        });
+    }
+
     const headers = new Headers(req.headers);
     headers.set("Authorization", `Bearer ${tokenData.access_token}`);
 

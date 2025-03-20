@@ -44,7 +44,7 @@ void ANCSServer::run() {
         esp_log_buffer_hex(LOG_TAG, LOG_TAG, sizeof(LOG_TAG));
 
         // Initialize device
-        BLEDevice::init("Britabuddy");
+        BLEDevice::init("RoBuddie");
         BLEServer* server = BLEDevice::createServer();
         server->setCallbacks(new ANCSServerCallbacks(this));
 
